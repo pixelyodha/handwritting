@@ -266,6 +266,20 @@
                 // Ensure model focuses on content
                 temperature: 0.1, 
             }
+               
+            try {
+        const response = await fetchWithBackoff(GEMINI_API_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        const result = await response.json();
+        return result.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || "GEMINI_ERROR: No text extracted.";
+    } catch (error) {
+        console.error("Gemini HWR API Call failed:", error);
+        return "GEMINI_ERROR: API call failed.";
+    }
         };
 
         const response = await fetchWithBackoff(GEMINI_API_URL, {
@@ -400,4 +414,5 @@
 </body>
 
 </html>
+
 
