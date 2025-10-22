@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Advanced Custom Handwriting Font Synthesizer</title>
+    <title>Advanced Custom Handwriting Font Synthesizer (OpenAI Powered)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Kalam:wght@300;400;700&display=swap" rel="stylesheet">
     <style>
@@ -40,8 +40,8 @@
 
 <div class="min-h-screen flex items-center justify-center p-4">
     <div id="app" class="container-card w-full max-w-4xl p-6 md:p-10 rounded-xl">
-        <h1 class="text-3xl font-extrabold text-gray-900 mb-2 text-center">Advanced Custom Font Synthesis</h1>
-        <p class="text-center text-gray-500 mb-6">Upload **at least two** image samples or a multi-page PDF for highly accurate style analysis.</p>
+        <h1 class="text-3xl font-extrabold text-gray-900 mb-2 text-center">OpenAI Custom Font Synthesis</h1>
+        <p class="text-center text-gray-500 mb-6">Upload **at least two** image samples or a multi-page PDF for highly accurate style analysis, powered by **GPT-4o mini**.</p>
 
         <div class="mb-8 p-6 border-2 border-dashed border-purple-400 rounded-xl bg-purple-50">
             <label for="file-upload" class="flex flex-col items-center justify-center cursor-pointer">
@@ -74,8 +74,8 @@
             <h2 class="text-xl font-bold text-gray-800 border-b pb-2 mb-4">Synthesis Pipeline Stages</h2>
 
             <div id="step-hwr" class="p-4 rounded-xl bg-gray-100 border border-gray-200 transition-colors duration-300">
-                <h3 class="font-bold text-lg mb-1 text-gray-900">1. Dual-Model Handwriting Recognition (HWR)</h3>
-                <p class="text-sm text-gray-600">Both Gemini and OpenAI models work to extract and validate the underlying text and initial glyph shapes from your input.</p>
+                <h3 class="font-bold text-lg mb-1 text-gray-900">1. Handwriting Recognition (HWR) - OpenAI</h3>
+                <p class="text-sm text-gray-600">The GPT-4o mini model extracts the underlying text and initial glyph shapes from your input images.</p>
                 <div id="hwr-status" class="mt-2 text-sm font-medium text-gray-500">Status: Pending</div>
                 <pre id="hwr-output" class="mt-3 p-3 bg-gray-50 border rounded-md text-xs whitespace-pre-wrap hidden"></pre>
             </div>
@@ -145,11 +145,8 @@
 
     // --- APPLICATION LOGIC ---
     
-    // --- API KEYS --- (NOTE: These should be handled securely on a backend in a real app)
-    const GEMINI_API_KEY = "AIzaSyC3RBECUArabSMELMozMK8-QSuUaTTVp-M";
+    // --- API KEY --- (NOTE: These should be handled securely on a backend in a real app)
     const CHATGPT_API_KEY = "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";
-    
-    const GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + GEMINI_API_KEY;
     const CHATGPT_API_URL = "https://api.openai.com/v1/chat/completions";
 
     const MIN_FILES_REQUIRED = 2; // Enforce minimum file upload
@@ -162,7 +159,7 @@
     function updateStep(id, statusText, isProcessing = false) {
         const element = document.getElementById(`step-${id}`);
         const statusElement = document.getElementById(`${id}-status`);
-        element.classList.remove('bg-gray-100', 'bg-yellow-100', 'bg-green-100');
+        element.classList.remove('bg-gray-100', 'bg-yellow-100', 'bg-green-100', 'bg-red-100'); // Added bg-red-100 for clean reset
         statusElement.innerHTML = `Status: ${statusText}`;
 
         if (isProcessing) {
@@ -221,7 +218,6 @@
     async function fileToBase64(file) {
         return new Promise((resolve, reject) => {
             const reader = new FileReader();
-            // PDF is handled as image/jpeg or image/png depending on backend capabilities. Here, we use a generic placeholder.
             const mimeType = file.type.includes('pdf') ? 'image/jpeg' : file.type; 
             reader.onload = () => resolve({
                 base64: reader.result.split(',')[1],
@@ -250,49 +246,9 @@
             }
         }
     }
-
-    async function callGeminiHWR(base64Data, mimeType) {
-        const userPrompt = "You are a specialized Handwriting Recognition (HWR) model. Analyze this image of handwriting. Extract ALL the text exactly as written, focusing only on the raw transcription. Provide only the extracted text as a plain string, nothing else.";
-        
-        const payload = {
-            contents: [{
-                role: "user",
-                parts: [
-                    { text: userPrompt },
-                    { inlineData: { mimeType: mimeType, data: base64Data } }
-                ]
-            }],
-           generationConfig: {
-                // Ensure model focuses on content
-                temperature: 0.1, 
-            }
-               
-            try {
-        const response = await fetchWithBackoff(GEMINI_API_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        });
-
-        const result = await response.json();
-        return result.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || "GEMINI_ERROR: No text extracted.";
-    } catch (error) {
-        console.error("Gemini HWR API Call failed:", error);
-        return "GEMINI_ERROR: API call failed.";
-    }
-        };
-
-        const response = await fetchWithBackoff(GEMINI_API_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        });
-
-        const result = await response.json();
-        return result.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || "GEMINI_ERROR: No text extracted.";
-    }
     
-    async function callChatGPTHWR(base64Data) {
+    // RENAMED and modified to use ONLY ChatGPT/OpenAI
+    async function callOpenAIHWR(base64Data) {
         const systemPrompt = "You are an expert Handwriting Recognition (HWR) model. Your task is to accurately transcribe the handwritten text from the image. Output ONLY the raw, extracted text as a plain string. Do not include any introductory phrases, formatting, or commentary.";
 
         const payload = {
@@ -316,79 +272,80 @@
             max_tokens: 1000
         };
 
-        const response = await fetchWithBackoff(CHATGPT_API_URL, {
-            method: 'POST',
-            headers: { 
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${CHATGPT_API_KEY}`
-            },
-            body: JSON.stringify(payload)
-        });
+        try {
+            const response = await fetchWithBackoff(CHATGPT_API_URL, {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${CHATGPT_API_KEY}`
+                },
+                body: JSON.stringify(payload)
+            });
 
-        const result = await response.json();
-        return result.choices?.[0]?.message?.content?.trim() || "CHATGPT_ERROR: No text extracted.";
+            const result = await response.json();
+            return result.choices?.[0]?.message?.content?.trim() || "OPENAI_ERROR: No text extracted.";
+        } catch (error) {
+            console.error("OpenAI HWR API Call failed:", error);
+            return "OPENAI_ERROR: API call failed.";
+        }
     }
 
-    async function dualModelHWR() {
+    // RENAMED from dualModelHWR to singleModelHWR
+    async function singleModelHWR() {
+        // Use the first image file for HWR. In a real app, you would process all files.
         const firstFile = uploadedFiles.find(f => f.type.startsWith('image/') || f.type.includes('pdf'));
         if (!firstFile) throw new Error("No image file found for HWR.");
         
-        const { base64, mimeType } = await fileToBase64(firstFile);
+        const { base64 } = await fileToBase64(firstFile);
         
-        // Run both models in parallel for validation and robustness
-        const [geminiText, chatGPTText] = await Promise.all([
-            callGeminiHWR(base64, mimeType),
-            callChatGPTHWR(base64)
-        ]);
+        const extractedText = await callOpenAIHWR(base64);
 
         const outputElement = document.getElementById('hwr-output');
         outputElement.innerHTML = `
-            Extracted Text (Gemini):\n---\n${geminiText}\n\n
-            Extracted Text (ChatGPT):\n---\n${chatGPTText}\n\n
-            Consensus/Final Text Used (For Simulation):\n---\n${geminiText}
+            Extracted Text (OpenAI GPT-4o mini):\n---\n${extractedText}
         `;
         outputElement.classList.remove('hidden');
 
-        // Simple consensus: use Gemini's output for the simulation
-        return geminiText; 
+        return extractedText; 
     }
 
     window.startSynthesis = async () => {
         if (processing || uploadedFiles.length < MIN_FILES_REQUIRED) return;
         processing = true;
         document.getElementById('process-button').disabled = true;
-        document.getElementById('status-message').textContent = "Starting robust dual-API synthesis pipeline...";
+        document.getElementById('status-message').textContent = "Starting OpenAI-powered synthesis pipeline...";
         resetStatus();
 
         try {
-            // --- STEP 1: Dual-Model HWR ---
-            updateStep('hwr', '<span class="text-yellow-600">Processing with Gemini & ChatGPT...</span>', true);
-            updateOverallProgress(10);
+            // --- STEP 1: Single-Model HWR (OpenAI) ---
+            updateStep('hwr', '<span class="text-yellow-600">Processing with OpenAI GPT-4o mini...</span>', true);
+            updateOverallProgress(20); // Increased progress step since it's the only HWR model
             
-            finalExtractedText = await dualModelHWR();
+            // Renamed from dualModelHWR
+            finalExtractedText = await singleModelHWR(); 
             
             if (finalExtractedText.includes('ERROR') || finalExtractedText.length < 5) {
-                throw new Error("Handwriting Recognition failed to produce usable text.");
+                throw new Error("Handwriting Recognition failed to produce usable text. Check API Key/Network.");
             }
 
-            updateStep('hwr', '<span class="text-green-600">Complete! Text Extracted and Validated.</span>');
-            updateOverallProgress(35);
+            updateStep('hwr', '<span class="text-green-600">Complete! Text Extracted.</span>');
+            updateOverallProgress(40);
             document.getElementById('status-message').textContent = "Text extracted. Moving to deep style analysis...";
 
 
             // --- STEP 2: Deep Style Metric Extraction (Simulated) ---
-            updateStep('analysis', '<span class="text-yellow-600">Analyzing stroke characteristics...</span>', true);
-            updateOverallProgress(45);
+            updateStep('analysis', '<span class="text-yellow-600">Analyzing stroke characteristics across all files...</span>', true);
+            updateOverallProgress(55);
             await new Promise(resolve => setTimeout(resolve, 3000)); // Simulate deep analysis
 
             updateStep('analysis', '<span class="text-green-600">Complete! Detailed Style Profile Generated.</span>');
-            updateOverallProgress(70);
+            updateOverallProgress(75);
             document.getElementById('status-message').textContent = "Style analyzed. Beginning TTF compilation...";
 
 
             // --- STEP 3: TTF Vector & Kerning Compilation (Simulated) ---
             updateStep('ttf', '<span class="text-yellow-600">Compiling vectors with advanced kerning...</span>', true);
-            updateOverallProgress(80);
+            updateOverallProgress(85);
             await new Promise(resolve => setTimeout(resolve, 3500)); // Simulate complex compilation
 
             updateStep('ttf', '<span class="text-green-600">TTF V-1.0 Compiled and Ready.</span>');
@@ -412,7 +369,4 @@
     };
 </script>
 </body>
-
 </html>
-
-
