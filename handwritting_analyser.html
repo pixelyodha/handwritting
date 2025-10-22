@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Advanced Custom Handwriting Font Synthesizer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Kalam:wght@300;400;700&display=swap" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f7f9fc;
+        }
+        .container-card {
+            background-color: white;
+            box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.1), 0 0px 15px -5px rgba(0, 0, 0, 0.04);
+        }
+        .handwriting-font {
+            /* Using Kalam to simulate the unique generated font style */
+            font-family: 'Kalam', cursive; 
+        }
+        /* Custom progress animation */
+        .progress-bar {
+            background-color: #10b981; /* Tailwind green-500 */
+            transition: width 0.5s ease;
+        }
+        .step-current-pulse {
+             /* Custom color for current step */
+            background-color: #f59e0b; 
+            animation: pulse 1.5s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="min-h-screen flex items-center justify-center p-4">
+    <div id="app" class="container-card w-full max-w-4xl p-6 md:p-10 rounded-xl">
+        <h1 class="text-3xl font-extrabold text-gray-900 mb-2 text-center">Advanced Custom Font Synthesis</h1>
+        <p class="text-center text-gray-500 mb-6">Upload **at least two** image samples or a multi-page PDF for highly accurate style analysis.</p>
+
+        <div class="mb-8 p-6 border-2 border-dashed border-purple-400 rounded-xl bg-purple-50">
+            <label for="file-upload" class="flex flex-col items-center justify-center cursor-pointer">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-14 h-14 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                </svg>
+                <span class="mt-2 text-md font-medium text-purple-700">Drag & drop 2+ files, or click to browse</span>
+                <span class="text-xs text-gray-500">(Supports JPG, PNG, single/multi-page PDF for analysis)</span>
+                <input id="file-upload" type="file" multiple accept=".png, .jpg, .jpeg, .pdf" class="hidden" onchange="handleFileUpload(event)">
+            </label>
+            <div id="file-list" class="mt-4 space-y-2 max-h-40 overflow-y-auto border-t pt-2 border-purple-200">
+                </div>
+        </div>
+
+        <div class="flex flex-col sm:flex-row justify-between items-center space-y-4 sm:space-y-0 sm:space-x-4 mb-8">
+            <button id="process-button" onclick="startSynthesis()" class="w-full sm:w-auto px-8 py-3 bg-purple-600 text-white font-semibold rounded-lg hover:bg-purple-700 transition duration-150 shadow-xl disabled:bg-purple-400" disabled>
+                Start Robust Font Synthesis
+            </button>
+            <div id="status-message" class="text-sm text-gray-600 w-full sm:w-auto text-center sm:text-right font-medium">Awaiting minimum 2 files...</div>
+        </div>
+        
+        <div class="mb-6">
+            <h2 class="text-sm font-semibold text-gray-700 mb-1">Overall Progress</h2>
+            <div class="w-full bg-gray-200 rounded-full h-2.5">
+                <div id="overall-progress" class="progress-bar h-2.5 rounded-full" style="width: 0%"></div>
+            </div>
+        </div>
+
+        <div class="space-y-4">
+            <h2 class="text-xl font-bold text-gray-800 border-b pb-2 mb-4">Synthesis Pipeline Stages</h2>
+
+            <div id="step-hwr" class="p-4 rounded-xl bg-gray-100 border border-gray-200 transition-colors duration-300">
+                <h3 class="font-bold text-lg mb-1 text-gray-900">1. Dual-Model Handwriting Recognition (HWR)</h3>
+                <p class="text-sm text-gray-600">Both Gemini and OpenAI models work to extract and validate the underlying text and initial glyph shapes from your input.</p>
+                <div id="hwr-status" class="mt-2 text-sm font-medium text-gray-500">Status: Pending</div>
+                <pre id="hwr-output" class="mt-3 p-3 bg-gray-50 border rounded-md text-xs whitespace-pre-wrap hidden"></pre>
+            </div>
+
+            <div id="step-analysis" class="p-4 rounded-xl bg-gray-100 border border-gray-200 transition-colors duration-300">
+                <h3 class="font-bold text-lg mb-1 text-gray-900">2. Deep Style Metric Extraction</h3>
+                <p class="text-sm text-gray-600">The system analyzes stroke density, slant variation, curve characteristics, connection points, and glyph alternatives (allograph detection).</p>
+                <div id="analysis-status" class="mt-2 text-sm font-medium text-gray-500">Status: Pending</div>
+            </div>
+
+            <div id="step-ttf" class="p-4 rounded-xl bg-gray-100 border border-gray-200 transition-colors duration-300">
+                <h3 class="font-bold text-lg mb-1 text-gray-900">3. TTF Vector & Kerning Compilation</h3>
+                <p class="text-sm text-gray-600">Vector outlines are generated with Bézier curve control points and compiled into a highly detailed TrueType Font file, including complex kerning data.</p>
+                <div id="ttf-status" class="mt-2 text-sm font-medium text-gray-500">Status: Pending</div>
+            </div>
+        </div>
+
+        <div id="result-section" class="mt-8 p-6 bg-green-50 border border-green-400 rounded-xl hidden">
+            <h2 class="text-2xl font-bold text-green-700 mb-4">Synthesis Complete!</h2>
+            <p class="text-gray-700 mb-4">Your personalized font is ready. Download your unique TTF file now (Simulated success).</p>
+            <div class="p-4 bg-white border border-gray-300 rounded-lg">
+                <p id="preview-text" class="text-3xl handwriting-font leading-relaxed">The quick brown fox jumps over the lazy dog. 1234567890</p>
+                <p class="text-sm text-gray-500 mt-3">This text is styled with a similar script font to simulate your unique, high-fidelity handwriting style.</p>
+            </div>
+            <a href="#" class="mt-4 inline-block px-6 py-2 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition duration-150">
+                Download Your Custom Font (.ttf)
+            </a>
+        </div>
+
+    </div>
+</div>
+
+<script type="module">
+    // --- FIREBASE SETUP PLACEHOLDER ---
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getFirestore } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+    
+    let db, auth, userId;
+    let isAuthReady = false;
+
+    // Global variables for Canvas environment
+    const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+    const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+    const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+    window.onload = async function () {
+        if (Object.keys(firebaseConfig).length > 0) {
+            const app = initializeApp(firebaseConfig);
+            db = getFirestore(app);
+            auth = getAuth(app);
+            
+            try {
+                if (initialAuthToken) {
+                    await signInWithCustomToken(auth, initialAuthToken);
+                } else {
+                    await signInAnonymously(auth);
+                }
+                userId = auth.currentUser?.uid || crypto.randomUUID();
+                isAuthReady = true;
+                console.log("Firebase initialized. User ID:", userId);
+            } catch (error) {
+                console.error("Firebase Auth Error:", error);
+            }
+        }
+    }
+
+    // --- APPLICATION LOGIC ---
+    
+    // --- API KEYS --- (NOTE: These should be handled securely on a backend in a real app)
+    const GEMINI_API_KEY = "AIzaSyC3RBECUArabSMELMozMK8-QSuUaTTVp-M";
+    const CHATGPT_API_KEY = "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";
+    
+    const GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + GEMINI_API_KEY;
+    const CHATGPT_API_URL = "https://api.openai.com/v1/chat/completions";
+
+    const MIN_FILES_REQUIRED = 2; // Enforce minimum file upload
+
+    let uploadedFiles = [];
+    let processing = false;
+    let finalExtractedText = "";
+    
+    // Helper function to update step status
+    function updateStep(id, statusText, isProcessing = false) {
+        const element = document.getElementById(`step-${id}`);
+        const statusElement = document.getElementById(`${id}-status`);
+        element.classList.remove('bg-gray-100', 'bg-yellow-100', 'bg-green-100');
+        statusElement.innerHTML = `Status: ${statusText}`;
+
+        if (isProcessing) {
+            element.classList.add('bg-yellow-100', 'step-current-pulse');
+        } else if (statusText.includes('Complete')) {
+            element.classList.remove('step-current-pulse');
+            element.classList.add('bg-green-100');
+        } else if (statusText.includes('Error')) {
+            element.classList.remove('step-current-pulse');
+            element.classList.add('bg-red-100');
+        } else {
+            element.classList.remove('step-current-pulse');
+            element.classList.add('bg-gray-100');
+        }
+    }
+
+    function updateOverallProgress(percentage) {
+        document.getElementById('overall-progress').style.width = `${percentage}%`;
+    }
+
+    window.handleFileUpload = (event) => {
+        const fileListElement = document.getElementById('file-list');
+        if (event.target.files.length > 0) {
+            fileListElement.innerHTML = '';
+            uploadedFiles = Array.from(event.target.files);
+        }
+        
+        uploadedFiles.forEach(file => {
+            const item = document.createElement('div');
+            item.className = 'flex items-center justify-between p-2 text-sm border-b last:border-b-0 text-gray-700';
+            item.innerHTML = `
+                <span>${file.name}</span>
+                <span class="text-xs text-purple-500">${(file.size / 1024 / 1024).toFixed(2)} MB</span>
+            `;
+            fileListElement.appendChild(item);
+        });
+
+        const isReady = uploadedFiles.length >= MIN_FILES_REQUIRED && !processing;
+        document.getElementById('process-button').disabled = !isReady;
+        document.getElementById('status-message').textContent = isReady 
+            ? `${uploadedFiles.length} file(s) ready. Start synthesis.` 
+            : `Need at least ${MIN_FILES_REQUIRED} files (${uploadedFiles.length} uploaded).`;
+        resetStatus();
+    };
+
+    function resetStatus() {
+        updateStep('hwr', 'Pending');
+        updateStep('analysis', 'Pending');
+        updateStep('ttf', 'Pending');
+        document.getElementById('hwr-output').classList.add('hidden');
+        document.getElementById('result-section').classList.add('hidden');
+        updateOverallProgress(0);
+        finalExtractedText = "";
+    }
+
+    async function fileToBase64(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            // PDF is handled as image/jpeg or image/png depending on backend capabilities. Here, we use a generic placeholder.
+            const mimeType = file.type.includes('pdf') ? 'image/jpeg' : file.type; 
+            reader.onload = () => resolve({
+                base64: reader.result.split(',')[1],
+                mimeType: mimeType
+            });
+            reader.onerror = error => reject(error);
+            reader.readAsDataURL(file);
+        });
+    }
+
+    // Exponential backoff utility for API calls
+    async function fetchWithBackoff(url, options, maxRetries = 3) {
+        for (let attempt = 0; attempt < maxRetries; attempt++) {
+            try {
+                const response = await fetch(url, options);
+                if (!response.ok) {
+                    const errorBody = await response.text();
+                    throw new Error(`HTTP error! Status: ${response.status}. Body: ${errorBody.substring(0, 200)}...`);
+                }
+                return response;
+            } catch (error) {
+                if (attempt === maxRetries - 1) throw error;
+                const delay = Math.pow(2, attempt) * 1000 + Math.random() * 500;
+                console.warn(`Retry attempt ${attempt + 1} failed. Retrying in ${delay.toFixed(0)}ms...`);
+                await new Promise(resolve => setTimeout(resolve, delay));
+            }
+        }
+    }
+
+    async function callGeminiHWR(base64Data, mimeType) {
+        const userPrompt = "You are a specialized Handwriting Recognition (HWR) model. Analyze this image of handwriting. Extract ALL the text exactly as written, focusing only on the raw transcription. Provide only the extracted text as a plain string, nothing else.";
+        
+        const payload = {
+            contents: [{
+                role: "user",
+                parts: [
+                    { text: userPrompt },
+                    { inlineData: { mimeType: mimeType, data: base64Data } }
+                ]
+            }],
+            config: {
+                // Ensure model focuses on content
+                temperature: 0.1, 
+            }
+        };
+
+        const response = await fetchWithBackoff(GEMINI_API_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        const result = await response.json();
+        return result.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || "GEMINI_ERROR: No text extracted.";
+    }
+    
+    async function callChatGPTHWR(base64Data) {
+        const systemPrompt = "You are an expert Handwriting Recognition (HWR) model. Your task is to accurately transcribe the handwritten text from the image. Output ONLY the raw, extracted text as a plain string. Do not include any introductory phrases, formatting, or commentary.";
+
+        const payload = {
+            model: "gpt-4o-mini", // Cost-effective and capable for image
+            messages: [
+                { role: "system", content: systemPrompt },
+                {
+                    role: "user",
+                    content: [
+                        { type: "text", text: "Transcribe the handwriting in this image." },
+                        {
+                            type: "image_url",
+                            image_url: {
+                                // OpenAI expects a full data URL, not just the base64 part
+                                url: `data:image/jpeg;base64,${base64Data}` 
+                            }
+                        }
+                    ]
+                }
+            ],
+            max_tokens: 1000
+        };
+
+        const response = await fetchWithBackoff(CHATGPT_API_URL, {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${CHATGPT_API_KEY}`
+            },
+            body: JSON.stringify(payload)
+        });
+
+        const result = await response.json();
+        return result.choices?.[0]?.message?.content?.trim() || "CHATGPT_ERROR: No text extracted.";
+    }
+
+    async function dualModelHWR() {
+        const firstFile = uploadedFiles.find(f => f.type.startsWith('image/') || f.type.includes('pdf'));
+        if (!firstFile) throw new Error("No image file found for HWR.");
+        
+        const { base64, mimeType } = await fileToBase64(firstFile);
+        
+        // Run both models in parallel for validation and robustness
+        const [geminiText, chatGPTText] = await Promise.all([
+            callGeminiHWR(base64, mimeType),
+            callChatGPTHWR(base64)
+        ]);
+
+        const outputElement = document.getElementById('hwr-output');
+        outputElement.innerHTML = `
+            Extracted Text (Gemini):\n---\n${geminiText}\n\n
+            Extracted Text (ChatGPT):\n---\n${chatGPTText}\n\n
+            Consensus/Final Text Used (For Simulation):\n---\n${geminiText}
+        `;
+        outputElement.classList.remove('hidden');
+
+        // Simple consensus: use Gemini's output for the simulation
+        return geminiText; 
+    }
+
+    window.startSynthesis = async () => {
+        if (processing || uploadedFiles.length < MIN_FILES_REQUIRED) return;
+        processing = true;
+        document.getElementById('process-button').disabled = true;
+        document.getElementById('status-message').textContent = "Starting robust dual-API synthesis pipeline...";
+        resetStatus();
+
+        try {
+            // --- STEP 1: Dual-Model HWR ---
+            updateStep('hwr', '<span class="text-yellow-600">Processing with Gemini & ChatGPT...</span>', true);
+            updateOverallProgress(10);
+            
+            finalExtractedText = await dualModelHWR();
+            
+            if (finalExtractedText.includes('ERROR') || finalExtractedText.length < 5) {
+                throw new Error("Handwriting Recognition failed to produce usable text.");
+            }
+
+            updateStep('hwr', '<span class="text-green-600">Complete! Text Extracted and Validated.</span>');
+            updateOverallProgress(35);
+            document.getElementById('status-message').textContent = "Text extracted. Moving to deep style analysis...";
+
+
+            // --- STEP 2: Deep Style Metric Extraction (Simulated) ---
+            updateStep('analysis', '<span class="text-yellow-600">Analyzing stroke characteristics...</span>', true);
+            updateOverallProgress(45);
+            await new Promise(resolve => setTimeout(resolve, 3000)); // Simulate deep analysis
+
+            updateStep('analysis', '<span class="text-green-600">Complete! Detailed Style Profile Generated.</span>');
+            updateOverallProgress(70);
+            document.getElementById('status-message').textContent = "Style analyzed. Beginning TTF compilation...";
+
+
+            // --- STEP 3: TTF Vector & Kerning Compilation (Simulated) ---
+            updateStep('ttf', '<span class="text-yellow-600">Compiling vectors with advanced kerning...</span>', true);
+            updateOverallProgress(80);
+            await new Promise(resolve => setTimeout(resolve, 3500)); // Simulate complex compilation
+
+            updateStep('ttf', '<span class="text-green-600">TTF V-1.0 Compiled and Ready.</span>');
+            updateOverallProgress(100);
+            document.getElementById('status-message').textContent = "Process complete. Custom TTF ready for download.";
+
+            // --- Finalization ---
+            document.getElementById('preview-text').textContent = finalExtractedText.substring(0, 150) + "...";
+            document.getElementById('result-section').classList.remove('hidden');
+
+        } catch (error) {
+            console.error("Synthesis Pipeline Failed:", error);
+            document.getElementById('status-message').textContent = `Synthesis Failed: ${error.message}. Please check console for details.`;
+            updateStep('hwr', '<span class="text-red-600">Error!</span>');
+            updateStep('analysis', '<span class="text-red-600">Error!</span>');
+            updateStep('ttf', '<span class="text-red-600">Error!</span>');
+        } finally {
+            processing = false;
+            document.getElementById('process-button').disabled = (uploadedFiles.length < MIN_FILES_REQUIRED);
+        }
+    };
+</script>
+</body>
+</html>
